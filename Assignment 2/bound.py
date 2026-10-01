@@ -104,11 +104,6 @@ def get_boundary_conditions():
 
     return bcs
 
-
-
-
-
-
 if __name__ == "__main__":
     bcs = get_boundary_conditions()
     print("\nSummary:")

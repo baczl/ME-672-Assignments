@@ -29,7 +29,6 @@ def display(tri_plot, T):
     ax.set_title('FEM Temperature Distribution')
 
     # Adjust viewing angle
-    ax.view_init(elev=30, azim=-135)
-
+    ax.view_init(elev=30, azim=-45)
     plt.tight_layout()
     plt.show()

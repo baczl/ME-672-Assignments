@@ -88,19 +88,27 @@ def neuman_bc(b, boundary_nodes, segment_n, boundary_conditions, q0):
 
     return b
 
-def dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_values):
-    
+def dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices):
+    # Find edge indices that are dirichlet
     indices = np.array([i for i, val in enumerate(boundary_conditions) if val == 'd'])
-    if len(indices > 0):
+    # If there are not zero dirichlet edges, modify K and b accordingly
+    if not (len(indices) == 0):
+        # Find out which nodes are dirichlet
         dirichlet_nodes = np.array([
         j
         for j in range(len(boundary_nodes))
         if boundary_conditions[segment_n[j]] == 'd'
     ])
+        # Loop over the vector and over each dirichlet column of K subracting all entries times the dirichlet conditions
         for i in range(0,len(b)):
-            for j in range(0,len(boundary_nodes)):
-                if np.any(indices == segment_n[j]): 
-                    #Subtract that known value from the right side if its a dirichlet node
+            for j in dirichlet_nodes: 
+                #Subtract the average known value from the right side if its a corner dirichlet node
+                if np.any(corner_nodes == j):
+                    corner_index = np.where(corner_nodes == j)[0][0]
+                    b[i] -= K[i,j]*1/2*(dirichlet_values[int(adjacent_indices[corner_index][0])] + dirichlet_values[int(adjacent_indices[corner_index][1])])
+
+                else:
+                    # Otherwise just subtract the known value from the right side
                     b[i] -= K[i,j]*dirichlet_values[int(segment_n[j])]
 
         # If boundary value is known (dirichlet), remove columns and rows that have it.
@@ -111,10 +119,10 @@ def dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_
     return K, b
 
 
-def gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values):
+def gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices):
     K = assemble_matrix(tri)
     b = assemble_vector(tri,f)
     b = neuman_bc(b, boundary_nodes, segment_n, boundary_conditions, q0)
-    (K, b) = dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_values)
+    (K, b) = dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices)
 
     return K, b

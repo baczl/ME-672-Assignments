@@ -7,8 +7,8 @@ import show3d
 # Desired parameters
 W = 20
 H = 30
-N_INTERIOR = 400
-N_BOUNDARY = 40
+N_INTERIOR = 1
+N_BOUNDARY = 4
 corners = np.array([[-W/2,-H/2],[W/2, -H/2],[W/2,H/2],[-W/2,H/2]])
 
 # Define a load vector function
@@ -20,13 +20,18 @@ boundary_conditions = ['n', 'd', 'd', 'd']
 q0 = 1
 dirichlet_values = [0, 10, 30, 15]
 
-mesh_data = mesh(corners, N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
+# mesh_data = mesh(corners, N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
+
+mesh_data = mesh_example(N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
 
 tri = mesh_data.tri
 nodes = mesh_data.nodes
 boundary_nodes = mesh_data.boundary_nodes
 interior_nodes = mesh_data.interior_nodes
 segment_n = mesh_data.segment_n
+corner_nodes = mesh_data.corner_nodes
+adjacent_indices = mesh_data.adjacent_indices
+
 
 dirichlet_n = np.array([
     i
@@ -34,7 +39,7 @@ dirichlet_n = np.array([
     if boundary_conditions[segment_n[i]] == 'd'
 ])
 
-(K,b) = gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values)
+(K,b) = gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices)
 
 
 
@@ -43,22 +48,26 @@ T_unknown = np.linalg.solve(K,b)
 
 T = np.zeros(len(nodes))
 
+
+# Place the known T values back in the full T vector and put the unknown in their respective places
 n = 0
 for i in range(0, len(nodes)):
+    # If the node is a dirichlet node, use a known value.
     if i in dirichlet_n:
-        T[i] = dirichlet_values[segment_n[i]]
+        # If the node is on a corner, average the two dirichlet values.
+        if np.any(corner_nodes == i):
+            corner_index = np.where(corner_nodes == i)[0][0]
+            T[i] = 1/2*(dirichlet_values[int(adjacent_indices[corner_index][0])] + dirichlet_values[int(adjacent_indices[corner_index][1])])
+        else:
+            # Otherwise just use the dirichlet value for that edge.
+            T[i] = dirichlet_values[segment_n[i]]
     else:
+        # If the node is not a dirichlet node, use the value from the solution.
         T[i] = T_unknown[n]
+        # Keep a count for unknown to put them in the right spots. So i increases every
+        # loop but n only increases if we use up an unknown value.
         n += 1
     
-
-# plt.scatter(corners[:,0], corners[:,1])
-# plt.scatter(nodes[:, 0], nodes[:, 1])
-# for triangle in tri.simplices:
-#     points = nodes[triangle]
-#     points = np.vstack([points, points[0]])
-#     plt.plot(points[:, 0], points[:, 1], 'k-')
-
 # Convert SciPy Delaunay triangulation to Matplotlib triangulation
 tri_plot = mtri.Triangulation(
     nodes[:, 0],

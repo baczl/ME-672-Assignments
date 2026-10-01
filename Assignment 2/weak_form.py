@@ -154,6 +154,11 @@ def derive_weak_form(bcs, source=0, verbose=True):
     return {
         "strong": strong,
         "weak": weak,
+        "lhs": lhs,
+        "rhs": rhs,
+        "T": T,
+        "v": v,
+        "bcs": bcs,
         "essential_bcs": essential,
         "dirichlet_sides": dirichlet_sides,
         "latex_strong": sp.latex(strong),
@@ -162,12 +167,9 @@ def derive_weak_form(bcs, source=0, verbose=True):
 
 
 if __name__ == "__main__":
-    # Example: assignment-style BCs (swap sides to match Figure 1)
-    example_bcs = {
-        "left":   {"type": "dirichlet", "alpha": 1.0, "beta": 0.0, "gamma": 15.0},
-        "right":  {"type": "dirichlet", "alpha": 1.0, "beta": 0.0, "gamma": 10.0},
-        "bottom": {"type": "neumann",   "alpha": 0.0, "beta": 1.0, "gamma": 1.0},
-        "top":    {"type": "dirichlet", "alpha": 1.0, "beta": 0.0, "gamma": 30.0},
-    }
-    result = derive_weak_form(example_bcs)
+    # Ask for the BCs interactively, then derive the weak form from them
+    from bound import get_boundary_conditions
+
+    bcs = get_boundary_conditions()
+    result = derive_weak_form(bcs)
     print("\nLaTeX of weak form:\n", result["latex_weak"])

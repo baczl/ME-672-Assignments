@@ -2,7 +2,7 @@ from mesh import *
 from gensystem import *
 import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
-
+import show3d
 
 # Desired parameters
 W = 20
@@ -13,13 +13,12 @@ corners = np.array([[-W/2,-H/2],[W/2, -H/2],[W/2,H/2],[-W/2,H/2]])
 
 # Define a load vector function
 def f(x,y) :
-    # return x*y
-    return 100*(np.sin(x)+np.sin(y))
+    return 0
 
 # Set boundary conditions going counter clockwise from the bottom edge
-boundary_conditions = ['d', 'd', 'n', 'd']
+boundary_conditions = ['n', 'd', 'd', 'd']
 q0 = 1
-dirichlet_values = [10, 10, 10, 10]
+dirichlet_values = [0, 10, 30, 15]
 
 mesh_data = mesh(corners, N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
 
@@ -66,6 +65,8 @@ tri_plot = mtri.Triangulation(
     nodes[:, 1],
     tri.simplices
 )
+
+show3d.display(tri_plot, T)
 
 # Create figure
 plt.figure(figsize=(9, 7))

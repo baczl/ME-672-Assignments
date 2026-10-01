@@ -78,7 +78,6 @@ def get_corner_nodes(corners, boundary_nodes):
         adjacent_indices[i] = np.array([(corner_index - 1) % 4, (corner_index)])
     return corner_nodes, adjacent_indices
 
-
 def mesh_example(N_BOUNDARY = 4, N_INTERIOR = 1):
     # Make corners at desired places
     corners = np.array([[0,0],[2,0],[2,2],[0,2]])

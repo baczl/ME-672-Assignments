@@ -3,7 +3,7 @@ from scipy.spatial import Delaunay
 from scipy.integrate import dblquad
 
 
-def assemble_matrix(tri):
+def assemble_matrix(tri, D):
     # Find how many total nodes there are
     N_NODES = len(tri.points)
     K = np.zeros((N_NODES, N_NODES))
@@ -26,7 +26,7 @@ def assemble_matrix(tri):
 
         # Assemble the local stiffness matrix
         G = np.array([grad_N1, grad_N2, grad_N3])
-        K_local = area * (G @ G.T)
+        K_local = area * (G @ D @ G.T)
         for i in range(3):
             for j in range(3):
                 K[triangle[i], triangle[j]] += K_local[i, j]
@@ -119,9 +119,9 @@ def dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_
     return K, b
 
 
-def gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices):
-    K = assemble_matrix(tri)
-    b = assemble_vector(tri,f)
+def gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices, D):
+    K = assemble_matrix(tri, D)
+    b = assemble_vector(tri, f)
     b = neuman_bc(b, boundary_nodes, segment_n, boundary_conditions, q0)
     (K, b) = dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices)
 

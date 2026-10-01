@@ -7,9 +7,20 @@ import show3d
 # Desired parameters
 W = 20
 H = 30
-N_INTERIOR = 1
-N_BOUNDARY = 4
+N_INTERIOR = 1000
+N_BOUNDARY = 4**4
+
 corners = np.array([[-W/2,-H/2],[W/2, -H/2],[W/2,H/2],[-W/2,H/2]])
+
+# Heat conduction parameters
+ks = 1
+kf = 900*ks
+
+# Define heat conduction tensor
+D = np.array([
+    [ks, 0],
+    [0, kf]
+])
 
 # Define a load vector function
 def f(x,y) :
@@ -22,7 +33,7 @@ dirichlet_values = [0, 10, 30, 15]
 
 # mesh_data = mesh(corners, N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
 
-mesh_data = mesh_example(N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
+mesh_data = mesh(corners, N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
 
 tri = mesh_data.tri
 nodes = mesh_data.nodes
@@ -39,7 +50,7 @@ dirichlet_n = np.array([
     if boundary_conditions[segment_n[i]] == 'd'
 ])
 
-(K,b) = gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices)
+(K,b) = gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices, D)
 
 
 

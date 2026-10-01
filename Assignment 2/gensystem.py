@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.spatial import Delaunay
-from scipy.integrate import quad
+from scipy.integrate import dblquad
 
 
 def assemble_matrix(tri):
@@ -33,54 +33,88 @@ def assemble_matrix(tri):
     
     return K
 
-def assemble_vector(tri) :
+def assemble_vector(tri, f) :
     N_NODES = len(tri.points)
-    nodes = tri.points
-    b = np.zeros((N_NODES, 1))
-    for triangle in tri.simplices:
-        # Create variables to change depending on triangle dimensions
-        zet = 1/3
-        eps = 1/3
+    b = np.zeros(N_NODES)
 
+    for triangle in tri.simplices:
+        
         # Get the coordinates of the triangle vertices
         points = tri.points[triangle]
-        # Compute the area of the triangle
-        v1 = points[1] - points[0]
-        v2 = points[2] - points[0]
-
-        area = 0.5 * abs(v1[0]*v2[1] - v1[1]*v2[0])
 
         # Compute the gradients of the shape functions
 
-        grads = np.zeros((3, 2))
-        for i in range(3):
-            p1 = points[i]
-            p2 = points[(i+1)%3]
-            p3 = points[(i+2)%3]
-            grads[i] = np.array([p2[1] - p3[1], p3[0] - p2[0]]) / (2 * area)
+        # Calculate the jacobian
+        J = np.array([
+    [points[1,0] - points[0,0], points[2,0] - points[0,0]],
+    [points[1,1] - points[0,1], points[2,1] - points[0,1]]
+])
+        # Make shape functions
+        N1 = lambda xi, eta: 1-xi-eta
+        N2 = lambda xi, eta: xi
+        N3 = lambda xi, eta: eta
 
-        def x_standardized(zet,eps):
-            return p1[0] + (p2[0] - p1[0]) * zet + (p3[0] - p1[0]) * eps
+        N = [N1, N2, N3]
+
+        # Make map functions
+        x_map = lambda xi, eta: N1(xi,eta)*points[0][0]+ N2(xi,eta)*points[1][0]+ N3(xi,eta)*points[2][0]
+        y_map = lambda xi, eta: N1(xi,eta)*points[0][1]+ N2(xi,eta)*points[1][1]+ N3(xi,eta)*points[2][1]
+
+        scale = abs(np.linalg.det(J))
         
-        def y_standardized(zet,eps):
-            return p1[1] + (p2[1] - p1[1]) * zet + (p3[1] - p1[1]) * eps
-
-        def f_standardized(x_standardized,y_standardized):
-            return f(x_standardized,y_standardized)
-
-        # for i in range(3):
-        #     # Get the index f of the node in the global system
-        #     j = triangle[i]
-        #     # Compute the integral of f * N_i over the triangle in pieces
-        #     integral_justf = (1-grads[i][0]*nodes[j][0]-grads[i][1]*nodes[j][1]) * quad(f_standardized, (eps, bounds[0,0], bounds[0,1]), (zet, bounds[1,0], bounds[1,1]))
-        #     integral_x = (grads[i][0]*nodes[j][0]) * quad(f_standardized, (eps, bounds[0,0], bounds[0,1]), (zet, bounds[1,0], bounds[1,1]))
-        #     integral_y = (grads[i][1]*nodes[j][1]) * quad(f_standardized, (eps, bounds[0,0], bounds[0,1]), (zet, bounds[1,0], bounds[1,1]))
-        #     # b[j] += integral_justf + integral_x + integral_y
-        #     print(integral_justf)
+        for i in range(3):
+            # Get the index f of the node in the global system
+            j = triangle[i]
+            b[j] += scale*dblquad(lambda eta, xi: N[i](xi,eta)*f(x_map(xi,eta), y_map(xi,eta)), 0, 1, lambda xi: 0, lambda xi: 1-xi)[0]
     return b
 
-def gen(tri) :
+def neuman_bc(b, boundary_nodes, segment_n, boundary_conditions, q0):
+    N_BOUNDARY = len(boundary_nodes)
+    # Check which side indices are neuman condition
+    indices = np.array([i for i, val in enumerate(boundary_conditions) if val == 'n'])
+    for i in range(0,N_BOUNDARY):
+        # Get a pair of points at indices i and j
+        j = (i+1) % N_BOUNDARY
+        # Make sure they are both neuman condition
+        if np.any(indices == segment_n[i]) and np.any(indices == segment_n[j]):
+            n = [boundary_nodes[i], boundary_nodes[j]]
+            edge = n[1]-n[0]
+            L = np.linalg.norm(edge)
+
+            # b must have the boundary nodes at the beginning (which it does in the meshing library)
+            # Integrate q0 quich is a constant
+            b[i] += q0 * L / 2
+            b[j] += q0 * L / 2
+
+    return b
+
+def dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_values):
+    
+    indices = np.array([i for i, val in enumerate(boundary_conditions) if val == 'd'])
+    if len(indices > 0):
+        dirichlet_nodes = np.array([
+        j
+        for j in range(len(boundary_nodes))
+        if boundary_conditions[segment_n[j]] == 'd'
+    ])
+        for i in range(0,len(b)):
+            for j in range(0,len(boundary_nodes)):
+                if np.any(indices == segment_n[j]): 
+                    #Subtract that known value from the right side if its a dirichlet node
+                    b[i] -= K[i,j]*dirichlet_values[int(segment_n[j])]
+
+        # If boundary value is known (dirichlet), remove columns and rows that have it.
+
+        b = np.delete(b, dirichlet_nodes)
+        K = np.delete(K, dirichlet_nodes, axis=0)
+        K = np.delete(K, dirichlet_nodes, axis=1)
+    return K, b
+
+
+def gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values):
     K = assemble_matrix(tri)
-    b = assemble_vector(tri)
+    b = assemble_vector(tri,f)
+    b = neuman_bc(b, boundary_nodes, segment_n, boundary_conditions, q0)
+    (K, b) = dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_values)
 
     return K, b

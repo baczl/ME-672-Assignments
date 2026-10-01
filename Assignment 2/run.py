@@ -1,4 +1,5 @@
 from mesh import *
+from gensystem import *
 import matplotlib.pyplot as plt
 
 # Desired parameters
@@ -9,6 +10,7 @@ N_BOUNDARY = 16
 corners = np.array([[-W/2,-H/2],[W/2, -H/2],[W/2,H/2],[-W/2,H/2]])
 
 (boundary_nodes, interior_nodes, tri, nodes) = mesh(corners, N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
+(K,b) = gen(tri)
 
 plt.scatter(corners[:,0], corners[:,1])
 plt.scatter(nodes[:, 0], nodes[:, 1])

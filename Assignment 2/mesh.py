@@ -30,7 +30,7 @@ def gen_boundary_nodes(corners, N_BOUNDARY=4):
 
 
 def gen_interior_nodes(corners, N_INTERIOR = 4):
-    print(corners)
+    # Just generate randoms inside boundary
     rng = np.random.default_rng()
     
     interior_nodes = np.column_stack((  
@@ -41,14 +41,18 @@ def gen_interior_nodes(corners, N_INTERIOR = 4):
     return interior_nodes
 
 def triangulate(boundary_nodes, interior_nodes):
+    # Make an array of all nodes
     nodes = np.vstack((boundary_nodes, interior_nodes))
+    # Delaunay triangulation of everything
     tri = Delaunay(nodes)
     
     return tri, nodes
 
 def mesh(corners, N_BOUNDARY = 4, N_INTERIOR = 1):
+    # Generate all the nodes, then run the triangulation function
     boundary_nodes = gen_boundary_nodes(corners, N_BOUNDARY)
     interior_nodes = gen_interior_nodes(corners, N_INTERIOR)
     (tri,nodes) = triangulate(boundary_nodes,interior_nodes)
 
+    # Return separate and combine arrays, and triangle array
     return boundary_nodes, interior_nodes, tri, nodes

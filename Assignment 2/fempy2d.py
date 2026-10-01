@@ -1,5 +1,6 @@
 # Needed for matrix algebra
 import numpy as np
+
 # Needed for quadrature integration
 from scipy import integrate
 # Needed for visualization
@@ -14,6 +15,7 @@ A = 100
 alpha = 100
 heat_source_center = (0.5, 0.5)
 
+# OLD FUNCTION
 # def f(x,y):
 #     return A*np.exp(-alpha*((x-heat_source_center[0])**2 + (y-heat_source_center[1])**2))
 
@@ -47,13 +49,23 @@ def generate_boundary_nodes(corners, N_BOUNDARY = 4):
     if N_BOUNDARY == 4:
         boundary_nodes = corners
     else:
-        for corner in corners:
-            total_length += np.linalg.norm(corners[1], corners[2])
+        # Calculate total perimeter - equal to 4 times the x and y of the top corner
+        perimeter = corners[2][0]*4+corners[2][1]*4
         
         # Otherwise, generate boundary nodes
         boundary_nodes = np.zeros((N_BOUNDARY, 2))
         for i in range(0,N_BOUNDARY):
-            t = i/N_BOUNDARY
+            s = i/N_BOUNDARY*perimeter
+            n_segment = 0
+            segment_length = 0
+            for j in range(4) :
+                segment_length = np.linalg.norm(corners[j]-corners[j+1])
+                if s < segment_length:
+                    n_segment = j
+                    break
+                else:
+                    s -= segment_length
+            
             
     
 

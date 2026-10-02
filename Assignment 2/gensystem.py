@@ -81,7 +81,7 @@ def neuman_bc(b, boundary_nodes, segment_n, boundary_conditions, q0):
             edge = n[1]-n[0]
             L = np.linalg.norm(edge)
 
-            # b must have the boundary nodes at the beginning (which it does in the meshing library)
+            # b must have the boundary nodes at the beginning (which it does in the triangle meshing library)
             # Integrate q0 quich is a constant
             b[i] += q0 * L / 2
             b[j] += q0 * L / 2
@@ -118,11 +118,44 @@ def dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_
         K = np.delete(K, dirichlet_nodes, axis=1)
     return K, b
 
-
 def gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices, D):
+
+    
     K = assemble_matrix(tri, D)
     b = assemble_vector(tri, f)
     b = neuman_bc(b, boundary_nodes, segment_n, boundary_conditions, q0)
     (K, b) = dirichlet_bc(K,b, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices)
 
     return K, b
+
+def assemble_matrix_quad(quad, D):
+    # Find how many total nodes there are
+        N_NODES = len(quad.points)
+        K = np.zeros((N_NODES, N_NODES))
+        for q in quad.simplices:
+            # Get the coordinates of the quadrilateral vertices
+            p1 = q.points[q[0]]
+            p2 = q.points[q[1]]
+            p3 = q.points[q[2]]
+            p4 = q.points[q[3]]
+    
+            # TODO Compute the area of the quad
+   
+    
+            # area = 
+    
+            # Compute the gradients of the shape functions
+            # grad_N1 = 
+            # grad_N2 = 
+            # grad_N3 = 
+            # grad_N4 = 
+
+    
+            # Assemble the local stiffness matrix
+            # G = np.array([grad_N1, grad_N2, grad_N3, grad_N4])
+            # K_local = area * (G @ D @ G.T)
+            # for i in range(4):
+                # for j in range(4):
+                    # K[rectangle[i], rectangle[j]] += K_local[i, j]
+        
+        return K

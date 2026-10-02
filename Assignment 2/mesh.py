@@ -9,11 +9,17 @@ from dataclasses import dataclass
 class Mesh:
     boundary_nodes: np.ndarray
     segment_n: np.ndarray
-    interior_nodes: np.ndarray
-    tri: Delaunay
     nodes: np.ndarray
     corner_nodes: np.ndarray
     adjacent_indices: np.ndarray
+    interior_nodes: np.ndarray = None
+    tri: Delaunay = None
+    rect: Rectangle = None
+
+@dataclass
+class Rectangle:
+    simplices: np.ndarray
+    points: np.ndarray   
 
 def gen_boundary_nodes(corners, N_BOUNDARY=4):
     segment_n = [0] * N_BOUNDARY
@@ -41,6 +47,27 @@ def gen_boundary_nodes(corners, N_BOUNDARY=4):
     
     return boundary_nodes, segment_n
 
+def rect_boundary_nodes(corners, N_X, N_Y):
+    delta_x = (corners[2][0] - corners[0][0])/N_X
+    delta_y = (corners[2][1] - corners[0][1])/N_Y
+
+    N_BOUNDARY = 2*N_X+2*N_Y
+
+    segment_n = [0] * N_BOUNDARY
+
+    boundary_nodes = np.zeros((N_BOUNDARY - 4, 2))
+    n = 0
+    for k in range(0,1):
+        for i in range(0,N_X) :
+            boundary_nodes[n] = corners[k]+np.array([delta_x*i*-1**(i)])
+            segment_n[n] = 2*k
+            n += 1
+        for i in range(0,N_Y) :
+            boundary_nodes[n] = corners[k+1]+np.array([delta_y*i*-1**(i)])
+            segment_n[n] = 2*k+1
+            n += 1
+    return boundary_nodes, segment_n
+
 def gen_interior_nodes(corners, N_INTERIOR = 1):
     if N_INTERIOR == 1:
         interior_nodes = corners[2]-0.5*(corners[2]-corners[0])
@@ -54,6 +81,50 @@ def gen_interior_nodes(corners, N_INTERIOR = 1):
         rng.uniform(low=corners[0,1], high=corners[2,1], size=N_INTERIOR)))
 
     return interior_nodes
+
+def rectangle_mesh(corners, N_X, N_Y):
+    # Just fill the rectangular boundary with evenly spaced rectangles
+    # Start at bottom left corner make first rectangle
+    simplices = np.zeros(((N_X-1)* (N_Y-1), 4), dtype=int)
+    starting_corner = corners[0]
+    scale = np.array([[1/(N_X-1), 0], [0, 1/(N_Y-1)]])
+    delta = corners[2]-corners[0]
+    N_BOUNDARY = N_X*2+N_Y*2-4
+    
+    (boundary_nodes, segment_n) = rect_boundary_nodes(corners, N_X,N_Y)
+    (corner_nodes, adjacent_indices) = get_corner_nodes(corners, boundary_nodes)
+    
+    points = np.zeros((N_X * N_Y, 2))
+    # points[0:N_BOUNDARY] = boundary_nodes
+    def grid_number(i,j):
+        return (i)*(N_Y) + (j)
+
+    def element_number(i,j):
+        return i*(N_Y-1) + j
+    for i in range(0, N_X):
+        for j in range(0, N_Y):
+            points[grid_number(i,j)] = starting_corner + (scale @ delta) * ([i,j])
+
+    for i in range(1, N_X-2):
+        for j in range(1, N_Y-2):
+            simplices[element_number(i, j)] = [
+                grid_number(i, j),
+                grid_number(i + 1, j),
+                grid_number(i + 1, j + 1),
+                grid_number(i, j + 1)
+            ]
+
+    rect = Rectangle(simplices, points)
+    return Mesh(
+            boundary_nodes,
+            segment_n,
+            interior_nodes=np.zeros((0, 2)),  # No need to pass interior nodes for rectangle mesh
+            tri = None, # no triangulation
+            nodes=points,
+            corner_nodes=corner_nodes,
+            adjacent_indices=adjacent_indices,
+            rect=rect
+        )
 
 def triangulate(boundary_nodes, interior_nodes):
     # Make an array of all nodes
@@ -96,9 +167,8 @@ def mesh(corners, N_BOUNDARY = 4, N_INTERIOR = 1):
     return Mesh(
         boundary_nodes,
         segment_n,
-        interior_nodes,
-        tri,
         nodes,
         corner_nodes,
-        adjacent_indices
+        adjacent_indices,
+        tri= tri
     )

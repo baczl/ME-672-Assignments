@@ -2,6 +2,8 @@ from mesh import *
 from gensystem import *
 import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
+from matplotlib.colors import Normalize
+from matplotlib.cm import ScalarMappable
 import show3d
 
 # Desired parameters :
@@ -10,6 +12,8 @@ W = 20
 H = 30
 N_INTERIOR = 200
 N_BOUNDARY = 40
+N_X = 16
+N_Y = 16
 
 corners = np.array([[-W/2,-H/2],[W/2, -H/2],[W/2,H/2],[-W/2,H/2]])
 
@@ -29,21 +33,25 @@ def f(x,y) :
 
 # Set boundary conditions going counter clockwise from the bottom edge
 boundary_conditions = ['n', 'd', 'd', 'd']
+# To set all one:
+# boundary_conditions = ['n'] *4
 q0 = 1
 dirichlet_values = [0, 10, 30, 15]
 
+
+# OLD code for triangles
+
 # mesh_data = mesh(corners, N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
 
-mesh_data = mesh(corners, N_BOUNDARY=N_BOUNDARY, N_INTERIOR=N_INTERIOR)
+# tri = mesh_data.tri
+# nodes = mesh_data.nodes
+# boundary_nodes = mesh_data.boundary_nodes
+# segment_n = mesh_data.segment_n
+# corner_nodes = mesh_data.corner_nodes
+# adjacent_indices = mesh_data.adjacent_indices
 
-tri = mesh_data.tri
-nodes = mesh_data.nodes
-boundary_nodes = mesh_data.boundary_nodes
-segment_n = mesh_data.segment_n
-corner_nodes = mesh_data.corner_nodes
-adjacent_indices = mesh_data.adjacent_indices
-print(tri.points)
-rect_mesh = rectangle_mesh(corners, 4, 4)
+# Create a rectangular mesh
+rect_mesh = rectangle_mesh(corners, N_X, N_Y)
 
 # Unpack rect_mesh data
 
@@ -52,45 +60,45 @@ boundary_nodes = rect_mesh.boundary_nodes
 segment_n = rect_mesh.segment_n
 corner_nodes = rect_mesh.corner_nodes
 adjacent_indices = rect_mesh.adjacent_indices
+boundary_ids = rect_mesh.boundary_ids
 rect = rect_mesh.rect
 points = rect.points
 simplices = rect.simplices
 
-dirichlet_n = np.array([
+# Find dirichlet nodes
+dirichlet_boundary_indices = np.array([
     i
     for i in range(len(boundary_nodes))
     if boundary_conditions[segment_n[i]] == 'd'
 ])
 
-(K,b) = gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, dirichlet_values, corner_nodes, adjacent_indices, D)
+dirichlet_n = boundary_ids[dirichlet_boundary_indices]
 
-print(points)
+# (K,b) = gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, numpy.arange(0,N_BOUNDARY) dirichlet_values, corner_nodes, adjacent_indices, D)
+(K, b) = gen_quad(rect_mesh, f, q0, boundary_conditions, dirichlet_values, D)
 
-# # Solve for non dirichlet T
-# T_unknown = np.linalg.solve(K,b)
+# Solve for non dirichlet T
+T_unknown = np.linalg.solve(K,b)
 
-# T = np.zeros(len(nodes))
+T = np.zeros(len(nodes))
 
 
-# # Place the known T values back in the full T vector and put the unknown in their respective places
-# n = 0
-# for i in range(0, len(nodes)):
-#     # If the node is a dirichlet node, use a known value.
-#     if i in dirichlet_n:
-#         # If the node is on a corner, average the two dirichlet values.
-#         if np.any(corner_nodes == i):
-#             corner_index = np.where(corner_nodes == i)[0][0]
-#             T[i] = 1/2*(dirichlet_values[int(adjacent_indices[corner_index][0])] + dirichlet_values[int(adjacent_indices[corner_index][1])])
-#         else:
-#             # Otherwise just use the dirichlet value for that edge.
-#             T[i] = dirichlet_values[segment_n[i]]
-#     else:
-#         # If the node is not a dirichlet node, use the value from the solution.
-#         T[i] = T_unknown[n]
-#         # Keep a count for unknown to put them in the right spots. So i increases every
-#         # loop but n only increases if we use up an unknown value.
-#         n += 1
+# Place the known T values back in the full T vector and put the unknown in their respective places
+n = 0
+for i in range(len(nodes)):
 
+    if i in dirichlet_n:
+
+        boundary_index = np.where(boundary_ids == i)[0][0]
+
+        T[i] = dirichlet_values[
+            int(segment_n[boundary_index])
+        ]
+
+    else:
+
+        T[i] = T_unknown[n]
+        n += 1
 # # Convert SciPy Delaunay triangulation to Matplotlib triangulation
 # tri_plot = mtri.Triangulation(
 #     nodes[:, 0],
@@ -100,72 +108,67 @@ print(points)
 
 # show3d.display(tri_plot, T)
 
-# # Create figure
-# plt.figure(figsize=(9, 7))
+fig, ax = plt.subplots(figsize=(9, 7))
 
-# # Plot temperature field
-# contour = plt.tripcolor(
-#     tri_plot,
-#     T,
-#     shading='gouraud',
-#     cmap='coolwarm'
-# )
+N = lambda xi, eta: np.array([
+    (1-xi)*(1-eta)/4,
+    (1+xi)*(1-eta)/4,
+    (1+xi)*(1+eta)/4,
+    (1-xi)*(1+eta)/4
+])
 
-
-
-# # Plot mesh
-# plt.triplot(
-#     tri_plot,
-#     color='black',
-#     linewidth=0.3,
-#     alpha=0.5
-# )
-
-# # # Plot nodes
-# # plt.scatter(
-# #     nodes[:, 0],
-# #     nodes[:, 1],
-# #     color='black',
-# #     s=8
-# # )
-
-# # Colorbar
-# plt.colorbar(
-#     contour,
-#     label='Temperature'
-# )
-
-# # Labels
-# plt.xlabel('x')
-# plt.ylabel('y')
-# plt.title('FEM Temperature Distribution')
-
-# # Preserve physical aspect ratio
-# plt.axis('equal')
-
-# plt.tight_layout()
-# plt.show()
-
-
-
-fig, ax = plt.subplots()
+# One global temperature scale
+norm = Normalize(vmin=T.min(), vmax=T.max())
+cmap = plt.get_cmap("coolwarm")
 
 for element in simplices:
-    # Close the quadrilateral
-    nodes = np.append(element, element[0])
 
-    x = points[nodes, 0]
-    y = points[nodes, 1]
+    # Global node coordinates for this quad
+    p = points[element]
 
-    ax.plot(x, y, 'k-')
+    # Global nodal temperatures for this quad
+    Tq = T[element]
 
-# Plot nodes
-ax.scatter(points[:, 0], points[:, 1])
+    # Sample the reference element
+    xi = np.linspace(-1, 1, 30)
+    eta = np.linspace(-1, 1, 30)
 
-# Label nodes
-for i, (x, y) in enumerate(points):
-    ax.text(x, y, str(i))
+    X, Y = np.meshgrid(xi, eta)
 
-ax.set_aspect('equal')
-ax.grid(True)
+    x = np.zeros_like(X)
+    y = np.zeros_like(X)
+    temp = np.zeros_like(X)
+
+    for j in range(len(eta)):
+        for i in range(len(xi)):
+
+            n = N(X[j, i], Y[j, i])
+
+            # Map reference coordinates -> physical coordinates
+            x[j, i] = n @ p[:, 0]
+            y[j, i] = n @ p[:, 1]
+
+            # Q1 temperature interpolation
+            temp[j, i] = n @ Tq
+
+    # Plot this element using the GLOBAL temperature scale
+    ax.contourf(
+        x, y, temp,
+        levels=np.linspace(T.min(), T.max(), 50),
+        cmap=cmap,
+        norm=norm
+    )
+
+# One colorbar for the entire solution
+sm = ScalarMappable(norm=norm, cmap=cmap)
+sm.set_array(T)
+
+fig.colorbar(sm, ax=ax, label="Temperature")
+
+ax.set_aspect("equal")
+ax.set_xlabel("x")
+ax.set_ylabel("y")
+ax.set_title("FEM Temperature Distribution")
+
+plt.tight_layout()
 plt.show()

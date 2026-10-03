@@ -81,7 +81,11 @@ case = ask_choice("Choose case ('test' or 'general'): ", ["test", "general"])
 if case == "test":
     # Original Assignment 2 values
     W, H = 20, 30
-    N_X, N_Y = 16, 16
+    # Cartesian mesh: one element per unit length
+    n_el_x = round(W)   # 20 elements
+    n_el_y = round(H)   # 30 elements
+    N_X = n_el_x + 1
+    N_Y = n_el_y + 1
     boundary_conditions = ['n', 'd', 'd', 'd']
     dirichlet_values = [0, 10, 30, 15]
     q_values = [1, 0, 0, 0]
@@ -93,8 +97,29 @@ else:
     print("\n--- Domain and mesh ---")
     W = ask_float("Domain width W: ", min_val=0)
     H = ask_float("Domain height H: ", min_val=0)
-    n_el_x = ask_int(f"Number of elements in x (1-{MAX_ELEMENTS}): ", 1, MAX_ELEMENTS)
-    n_el_y = ask_int(f"Number of elements in y (1-{MAX_ELEMENTS}): ", 1, MAX_ELEMENTS)
+
+    mesh_type = ask_choice("Mesh type: cartesian (1 element per unit length) or user-defined? (c/u): ",
+                           ["c", "u"])
+
+    if mesh_type == "c":
+        n_el_x = max(1, round(W))
+        n_el_y = max(1, round(H))
+
+        if not (np.isclose(W, n_el_x) and np.isclose(H, n_el_y)):
+            print(f"  Note: W and H aren't whole numbers; element size will be "
+                  f"{W/n_el_x:.4g} x {H/n_el_y:.4g}.")
+
+        if n_el_x > MAX_ELEMENTS or n_el_y > MAX_ELEMENTS:
+            print(f"  A cartesian mesh needs {n_el_x} x {n_el_y} elements, which exceeds the "
+                  f"{MAX_ELEMENTS}-per-direction limit. Switching to user-defined.")
+            mesh_type = "u"
+        else:
+            print(f"  Using a {n_el_x} x {n_el_y} cartesian mesh.")
+
+    if mesh_type == "u":
+        n_el_x = ask_int(f"Number of elements in x (1-{MAX_ELEMENTS}): ", 1, MAX_ELEMENTS)
+        n_el_y = ask_int(f"Number of elements in y (1-{MAX_ELEMENTS}): ", 1, MAX_ELEMENTS)
+
     N_X = n_el_x + 1   # nodes = elements + 1
     N_Y = n_el_y + 1
     D = ask_conductivity()
@@ -119,6 +144,7 @@ else:
 corners = np.array([[-W/2, -H/2], [W/2, -H/2], [W/2, H/2], [-W/2, H/2]])
 
 print_tensor(D)
+show_elements = ask_choice("Show element edges on the plot? (y/n): ", ["y", "n"]) == "y"
 
 # Define a load vector function
 def f(x,y) :
@@ -243,6 +269,10 @@ for element in simplices:
         cmap=cmap,
         norm=norm
     )
+        # Optionally outline this element
+    if show_elements:
+        outline = np.vstack([p, p[0]])   # close the loop back to the first node
+        ax.plot(outline[:, 0], outline[:, 1], color="k", linewidth=0.5)
 
 # One colorbar for the entire solution
 sm = ScalarMappable(norm=norm, cmap=cmap)

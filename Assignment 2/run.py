@@ -285,5 +285,29 @@ ax.set_xlabel("x")
 ax.set_ylabel("y")
 ax.set_title("FEM Temperature Distribution")
 
+# Show temperature under the cursor in the toolbar readout
+xmin, ymin = points.min(axis=0)
+xmax, ymax = points.max(axis=0)
+dx = (xmax - xmin) / (N_X - 1)
+dy = (ymax - ymin) / (N_Y - 1)
+
+def format_coord(x, y):
+    if not (xmin <= x <= xmax and ymin <= y <= ymax):
+        return f"x={x:.3f}, y={y:.3f}"
+
+    # Which element is the cursor in?
+    i = min(int((x - xmin) // dx), N_X - 2)
+    j = min(int((y - ymin) // dy), N_Y - 2)
+    element = simplices[i*(N_Y - 1) + j]
+
+    # Map to reference coordinates (-1 to 1) and interpolate
+    xi  = 2*(x - (xmin + i*dx))/dx - 1
+    eta = 2*(y - (ymin + j*dy))/dy - 1
+    T_here = N(xi, eta) @ T[element]
+
+    return f"x={x:.3f}, y={y:.3f}, T={T_here:.4f} °C"
+
+ax.format_coord = format_coord
+
 plt.tight_layout()
 plt.show()

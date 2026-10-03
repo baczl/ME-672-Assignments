@@ -77,22 +77,39 @@ def assemble_vector(tri, f) :
             b[j] += scale*dblquad(lambda eta, xi: N[i](xi,eta)*f(x_map(xi,eta), y_map(xi,eta)), 0, 1, lambda xi: 0, lambda xi: 1-xi)[0]
     return b
 
-def neuman_bc(b, mesh, boundary_conditions, q0):
-    N_BOUNDARY = len(mesh.boundary_nodes)
-    # Check which side indices are neuman condition
-    indices = np.array([i for i, val in enumerate(boundary_conditions) if val == 'n'])
-    for i in range(0,N_BOUNDARY):
-        # Get a pair of points at indices i and j
-        j = (i+1) % N_BOUNDARY
-        # Make sure they are both neuman condition
-        if np.any(indices == mesh.segment_n[i]) and np.any(indices == mesh.segment_n[j]):
-            n = [mesh.boundary_nodes[i], mesh.boundary_nodes[j]]
-            edge = n[1]-n[0]
-            L = np.linalg.norm(edge)
+def neuman_bc(b, mesh, boundary_conditions, q_values):
+    # Accept a single number too (applies the same q to every Neumann edge)
+    if np.isscalar(q_values):
+        q_values = [q_values] * 4
 
-            # Integrate q0 quich is a constant
-            b[mesh.boundary_ids[i]] += q0 * L / 2
-            b[mesh.boundary_ids[j]] += q0 * L / 2
+    xmin, ymin = mesh.nodes.min(axis=0)
+    xmax, ymax = mesh.nodes.max(axis=0)
+
+    N_BOUNDARY = len(mesh.boundary_nodes)
+    for i in range(N_BOUNDARY):
+        j = (i + 1) % N_BOUNDARY
+        p_i = mesh.boundary_nodes[i]
+        p_j = mesh.boundary_nodes[j]
+
+        # Decide which side this boundary edge lies on from its midpoint
+        mid = 0.5 * (p_i + p_j)
+        if np.isclose(mid[1], ymin):
+            side = 0   # bottom
+        elif np.isclose(mid[0], xmax):
+            side = 1   # right
+        elif np.isclose(mid[1], ymax):
+            side = 2   # top
+        else:
+            side = 3   # left
+
+        if boundary_conditions[side] != 'n':
+            continue
+
+        # Constant flux on a linear edge: q*L/2 to each end node
+        L = np.linalg.norm(p_j - p_i)
+        q = q_values[side]
+        b[mesh.boundary_ids[i]] += q * L / 2
+        b[mesh.boundary_ids[j]] += q * L / 2
 
     return b
 

@@ -4,40 +4,125 @@ import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
-import show3d
+# import show3d
 
-# Desired parameters :
-# Taken from assignment 2
-W = 20
-H = 30
-N_INTERIOR = 200
-N_BOUNDARY = 40
-N_X = 16
-N_Y = 16
 
-corners = np.array([[-W/2,-H/2],[W/2, -H/2],[W/2,H/2],[-W/2,H/2]])
+# ---------------- Input helpers ----------------
+# Functions to help with the user input sections. 
+def ask_float(prompt, min_val=None):
+    while True:
+        try:
+            val = float(input(prompt))
+        except ValueError:
+            print("  Please enter a number.")
+            continue
+        if min_val is not None and val <= min_val:
+            print(f"  Value must be greater than {min_val}.")
+            continue
+        return val
 
-# Heat conduction parameters
-ks = 1
-kf = 900*ks
+def ask_int(prompt, lo, hi):
+    while True:
+        try:
+            val = int(input(prompt))
+        except ValueError:
+            print("  Please enter a whole number.")
+            continue
+        if not lo <= val <= hi:
+            print(f"  Must be between {lo} and {hi}.")
+            continue
+        return val
 
-# Define heat conduction tensor
-D = np.array([
-    [ks, 0],
-    [0, kf]
-])
+def ask_choice(prompt, options):
+    while True:
+        val = input(prompt).strip().lower()
+        if val in options:
+            return val
+        print(f"  Choose one of: {', '.join(options)}")
+
+def ask_conductivity():
+    print("\n--- Thermal conductivity ---")
+    k_type = ask_choice("Single coefficient or tensor? (s/t): ", ["s", "t"])
+
+    if k_type == "s":
+        k = ask_float("  Thermal conductivity k: ", min_val=0)
+        return np.array([[k, 0],
+                         [0, k]])
+
+    while True:
+        kxx = ask_float("  kxx: ")
+        kyy = ask_float("  kyy: ")
+        kxy = ask_float("  kxy: ")
+        kyx = ask_float("  kyx: ")
+        D = np.array([[kxx, kxy],
+                      [kyx, kyy]])
+
+        # Positive definiteness is checked on the symmetric part
+        if np.any(np.linalg.eigvalsh(0.5 * (D + D.T)) <= 0):
+            print("  Tensor is not positive definite (need kxx > 0 and kxx*kyy > kxy^2). Try again.\n")
+            continue
+
+        if not np.isclose(kxy, kyx):
+            print("  Warning: kxy != kyx. Physical conductivity tensors are symmetric;"
+                  " the non-symmetric part only adds boundary terms here.")
+        return D
+
+def print_tensor(D):
+    print("\nConductivity tensor D =")
+    print(f"  | {D[0,0]:>10.4g}  {D[0,1]:>10.4g} |")
+    print(f"  | {D[1,0]:>10.4g}  {D[1,1]:>10.4g} |\n")
+
+# ---------------- Case selection ----------------
+MAX_ELEMENTS = 30   # per direction; dblquad assembly gets slow past this
+EDGE_NAMES = ["bottom", "right", "top", "left"]
+
+case = ask_choice("Choose case ('test' or 'general'): ", ["test", "general"])
+
+if case == "test":
+    # Original Assignment 2 values
+    W, H = 20, 30
+    N_X, N_Y = 16, 16
+    boundary_conditions = ['n', 'd', 'd', 'd']
+    dirichlet_values = [0, 10, 30, 15]
+    q_values = [1, 0, 0, 0]
+    D = np.array([[1, 0],
+                  [0, 900]])   # ks = 1, kf = 900*ks    
+
+else:
+    # ---- Domain and mesh ----
+    print("\n--- Domain and mesh ---")
+    W = ask_float("Domain width W: ", min_val=0)
+    H = ask_float("Domain height H: ", min_val=0)
+    n_el_x = ask_int(f"Number of elements in x (1-{MAX_ELEMENTS}): ", 1, MAX_ELEMENTS)
+    n_el_y = ask_int(f"Number of elements in y (1-{MAX_ELEMENTS}): ", 1, MAX_ELEMENTS)
+    N_X = n_el_x + 1   # nodes = elements + 1
+    N_Y = n_el_y + 1
+    D = ask_conductivity()
+
+    # ---- Boundary conditions ----
+    print("\n--- Boundary conditions (start at bottom, go counterclockwise) ---")
+    while True:
+        boundary_conditions, dirichlet_values, q_values = [], [], []
+        for name in EDGE_NAMES:
+            bc = ask_choice(f"{name} edge: Dirichlet or Neumann? (d/n): ", ["d", "n"])
+            boundary_conditions.append(bc)
+            if bc == 'd':
+                dirichlet_values.append(ask_float(f"  {name} temperature T [°C]: "))
+                q_values.append(0.0)
+            else:
+                q_values.append(ask_float(f"  {name} heat flux q: "))
+                dirichlet_values.append(0.0)
+        if 'd' in boundary_conditions:
+            break
+        print("  At least one edge must be Dirichlet (all-Neumann has no unique solution). Try again.\n")
+
+corners = np.array([[-W/2, -H/2], [W/2, -H/2], [W/2, H/2], [-W/2, H/2]])
+
+print_tensor(D)
 
 # Define a load vector function
 def f(x,y) :
     return 0
-
-# Set boundary conditions going counter clockwise from the bottom edge
-boundary_conditions = ['n', 'd', 'd', 'd']
-# To set all one:
-# boundary_conditions = ['n'] *4
-q0 = 1
-dirichlet_values = [0, 10, 30, 15]
-
 
 # OLD code for triangles
 
@@ -75,7 +160,7 @@ dirichlet_boundary_indices = np.array([
 dirichlet_n = boundary_ids[dirichlet_boundary_indices]
 
 # (K,b) = gen(tri, f, q0, boundary_nodes, segment_n, boundary_conditions, numpy.arange(0,N_BOUNDARY) dirichlet_values, corner_nodes, adjacent_indices, D)
-(K, b) = gen_quad(rect_mesh, f, q0, boundary_conditions, dirichlet_values, D)
+(K, b) = gen_quad(rect_mesh, f, q_values, boundary_conditions, dirichlet_values, D)
 
 # Solve for non dirichlet T
 T_unknown = np.linalg.solve(K,b)

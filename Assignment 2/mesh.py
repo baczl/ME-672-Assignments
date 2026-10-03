@@ -6,6 +6,11 @@ from scipy.spatial import Delaunay
 from dataclasses import dataclass
 
 @dataclass
+class Rectangle:
+    simplices: np.ndarray
+    points: np.ndarray 
+
+@dataclass
 class Mesh:
     boundary_nodes: np.ndarray
     segment_n: np.ndarray
@@ -17,11 +22,6 @@ class Mesh:
     tri: Delaunay = None
     rect: Rectangle = None
     boundary_ids: np.ndarray = None
-
-@dataclass
-class Rectangle:
-    simplices: np.ndarray
-    points: np.ndarray   
 
 def gen_boundary_nodes(corners, N_BOUNDARY=4):
     segment_n = [0] * N_BOUNDARY
